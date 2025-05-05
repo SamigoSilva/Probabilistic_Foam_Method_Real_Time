@@ -1,69 +1,127 @@
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from tensorflow.keras import regularizers
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, InputLayer, Dropout
+from typing import Tuple, Dict
+import logging
 
-class NavigationNN:
-    def __init__(self, input_shape):
+# Configuração básica de logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class FoamDataset(Dataset):
+    """Dataset para treino da rede neural"""
+    def __init__(self, grid_data: np.ndarray, targets: np.ndarray):
         """
         Args:
-            input_shape: Tuple (height, width) ou (height, width, channels)
+            grid_data: Array numpy com formatos [n_samples, height, width]
+            targets: Array numpy com os targets correspondentes
         """
-        # Adiciona dimensão de canal se necessário
-        if len(input_shape) == 2:
-            input_shape = input_shape + (1,)  # Transforma em (height, width, 1)
+        self.grid_data = torch.FloatTensor(grid_data).unsqueeze(1)  # Adiciona channel dim
+        self.targets = torch.FloatTensor(targets)
         
-        self.model = tf.keras.Sequential([
-            InputLayer(input_shape=input_shape),  # Camada explícita de input
-            Conv2D(32, (3,3), activation='relu', kernel_regularizer=regularizers.l2(0.001)),
-            MaxPooling2D((2,2)),
-            Dropout(0.3),  # Adicionado para reduzir overfitting
-            Flatten(),
-            Dense(64, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
-            Dropout(0.3),  # Adicionado para reduzir overfitting
-            Dense(2, activation='tanh')  # Saída: (Δx, Δy)
-        ])
-        # Compilação com métricas adicionais (MAE) e learning rate ajustável
-        self.model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-            loss='mse',
-            metrics=['mae', 'cosine_similarity']  # Monitora erro absoluto e similaridade
+    def __len__(self) -> int:
+        return len(self.grid_data)
+    
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.grid_data[idx], self.targets[idx]
+
+class FoamPredictor(nn.Module):
+    """Arquitetura leve para predição em tempo real"""
+    def __init__(self, input_shape: Tuple[int, int]):
+        super().__init__()
+        h, w = input_shape
+        
+        self.model = nn.Sequential(
+            # Camada de entrada
+            nn.Conv2d(1, 8, kernel_size=3, padding=1),  # [batch, 8, h, w]
+            nn.ReLU(),
+            nn.MaxPool2d(2),  # [batch, 8, h//2, w//2]
+            
+            # Camada intermediária
+            nn.Conv2d(8, 16, kernel_size=3, padding=1),  # [batch, 16, h//2, w//2]
+            nn.ReLU(),
+            
+            # Saída
+            nn.Flatten(),
+            nn.Linear(16 * (h//2) * (w//2), 1)  # Ajustar conforme necessidade
         )
-
-    def train(self, X, y, epochs=10, batch_size=32, validation_split=0.2):
-        # Garante que X tem 4 dimensões: (amostras, height, width, channels)
-        if X.ndim == 3:
-            X = np.expand_dims(X, axis=-1)
         
-        # Callback para early stopping (evita overfitting)
-        callbacks = [
-            tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True)
-        ]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.model(x)
+
+class NeuralFoamPredictor:
+    """Wrapper para o modelo neural com otimizações"""
+    def __init__(self, config: Dict):
+        self.device = self._get_device()
+        self.model = FoamPredictor((config['grid']['height'], config['grid']['width'])).to(self.device)
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-3)
+        self.loss_fn = nn.MSELoss()
         
-        history = self.model.fit(
-            X, y, 
-            epochs=epochs, 
-            batch_size=batch_size, 
-            validation_split=validation_split,
-            callbacks=callbacks  # Adiciona early stopping
-        )
-        return history
+        # Congela camadas se necessário
+        if config.get('freeze', False):
+            for param in self.model.parameters():
+                param.requires_grad = False
+    
+    def _get_device(self) -> torch.device:
+        """Seleciona dispositivo automaticamente com fallback para CPU"""
+        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    def train(self, train_loader: DataLoader, epochs: int = 10) -> Dict[str, float]:
+        """Loop de treino otimizado"""
+        self.model.train()
+        metrics = {'loss': []}
+        
+        for epoch in range(epochs):
+            for batch in train_loader:
+                inputs, targets = batch
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                
+                self.optimizer.zero_grad()
+                outputs = self.model(inputs)
+                loss = self.loss_fn(outputs, targets)
+                loss.backward()
+                self.optimizer.step()
+                
+            metrics['loss'].append(loss.item())
+            logger.info(f"Epoch {epoch+1}/{epochs} | Loss: {loss.item():.4f}")
+        
+        return metrics
+    
+    def predict(self, grid: np.ndarray) -> np.ndarray:
+        """Predição otimizada para tempo real"""
+        self.model.eval()
+        with torch.no_grad():
+            inputs = torch.FloatTensor(grid).unsqueeze(0).unsqueeze(0).to(self.device)
+            output = self.model(inputs)
+        return output.cpu().numpy()
+    
+    def save(self, path: str):
+        """Exporta o modelo otimizado"""
+        torch.jit.script(self.model).save(path)
+        logger.info(f"Model saved to {path}")
 
-    def predict_next_move(self, grid):
-        # Adiciona dimensões de batch e canal se necessário
-        if grid.ndim == 2:
-            grid = np.expand_dims(grid, axis=(0, -1))
-        elif grid.ndim == 3:
-            grid = np.expand_dims(grid, axis=0)
-        return self.model.predict(grid, verbose=0)[0]
-
-    def save_model(self, path):
-        # Salva no formato moderno (.keras)
-        self.model.save(path, save_format='keras')  # Ou use extensão .keras no path
-
-    @classmethod
-    def load_model(cls, path):
-        model = tf.keras.models.load_model(path)
-        nn = cls(input_shape=model.input_shape[1:])
-        nn.model = model
-        return nn
+# Exemplo de uso (teste mínimo)
+if __name__ == "__main__":
+    config = {
+        'grid': {'height': 80, 'width': 80},
+        'freeze': False
+    }
+    
+    # Dummy data
+    dummy_data = np.random.rand(100, 80, 80)
+    dummy_targets = np.random.rand(100, 1)
+    
+    # Pipeline completo
+    predictor = NeuralFoamPredictor(config)
+    dataset = FoamDataset(dummy_data, dummy_targets)
+    loader = DataLoader(dataset, batch_size=8, shuffle=True)
+    
+    # Treino (opcional)
+    predictor.train(loader, epochs=5)
+    
+    # Predição
+    test_grid = np.random.rand(80, 80)
+    prediction = predictor.predict(test_grid)
+    print(f"Prediction: {prediction}")

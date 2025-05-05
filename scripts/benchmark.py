@@ -1,6 +1,10 @@
 import time
 from tqdm import tqdm
 from core.foam import Foam
+import tracemalloc
+
+# Adicionar medição de memória
+tracemalloc.start()
 
 METHODS = ["potential", "occupancy", "neural"]
 
@@ -19,5 +23,8 @@ def run_benchmark(n_runs: int = 30, steps: int = 100):
                 'time': time.time() - start,
                 'metrics': foam.get_metrics()
             })
+
+# ... código do benchmark ...
+print(f"Memória usada: {tracemalloc.get_traced_memory()}")
     
     return results

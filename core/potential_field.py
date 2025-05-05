@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import List, Tuple, Union
 import numpy as np
+from numba import njit
 
 def load_dll() -> ctypes.CDLL:
     """Carrega a DLL com verificações de segurança"""
@@ -39,6 +40,7 @@ lib.update_potential_field.argtypes = [
 ]
 lib.update_potential_field.restype = None
 
+@njit(fastmath=True)
 def update_potential_field(
     grid: Union[List[List[float]], np.ndarray],
     obstacles: List[Tuple[float, float]],

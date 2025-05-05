@@ -1,0 +1,14 @@
+# config/params.yaml
+grid:
+  width: 80   # Reduzido de 100 para melhor performance
+  height: 80
+  resolution: 0.1  # metros por célula (opcional)
+
+simulation:
+  max_steps: 1000
+  real_time: true
+
+methods:
+  default: "potential"  # "potential", "occupancy" ou "neural"
+  neural:
+    model_path: "data/models/best_model.pth"

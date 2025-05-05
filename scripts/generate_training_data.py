@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+os.environ["OMP_NUM_THREADS"] = "4"  # Evita sobrecarga do OpenMP
 
 # Configuração de caminhos
 sys.path.append(str(Path(__file__).parent.parent))

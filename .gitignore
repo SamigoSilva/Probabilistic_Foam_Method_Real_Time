@@ -1,0 +1,30 @@
+# Arquivos de configuração local
+config/local_*.yaml
+
+# Dados temporários e resultados de simulação
+data/results/temp_*
+data/training/.cache/
+
+# Arquivos do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+venv/
+.env/
+.venv/
+
+# IDE/Editores
+.vscode/
+.idea/
+*.swp
+
+# Arquivos gerados pelo sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos grandes/dados brutos (opcional)
+data/raw/
+*.bag  # Se usar ROS
+*.hdf5

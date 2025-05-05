@@ -1,10 +1,16 @@
 import numpy as np
+import yaml
 from typing import Dict, List
 from collections import deque
 
 class Foam:
-    def __init__(self, width: int, height: int, n_obstacles: int = 10):
-        self.grid = np.zeros((height, width))
+    def __init__(self, config_file="config/params.yaml"):
+        with open(config_file) as f:
+            self.config = yaml.safe_load(f)
+        
+        self.width = self.config['grid']['width']
+        self.height = self.config['grid']['height']
+        self.grid = np.zeros((self.height, self.width))
         self.obstacles = self._generate_obstacles(n_obstacles, width, height)
         self.robot_pos = (width // 2, height // 2)
         self.history = deque(maxlen=30)  # Armazena apenas os últimos 30 frames

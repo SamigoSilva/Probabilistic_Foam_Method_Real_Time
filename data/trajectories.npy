@@ -1,0 +1,21 @@
+import numpy as np
+
+# Trajetórias para 3 objetos móveis (100 steps cada)
+n_mobile = 3
+n_steps = 100
+trajectories = np.zeros((n_mobile, n_steps, 2), dtype=np.float32)
+
+# Objeto 1: Movimento linear
+trajectories[0, :, 0] = np.linspace(10, 100, n_steps)  # X
+trajectories[0, :, 1] = np.linspace(10, 10, n_steps)   # Y
+
+# Objeto 2: Movimento circular
+theta = np.linspace(0, 2*np.pi, n_steps)
+trajectories[1, :, 0] = 70 + 20 * np.cos(theta)  # X
+trajectories[1, :, 1] = 70 + 20 * np.sin(theta)  # Y
+
+# Objeto 3: Zigue-zague
+trajectories[2, :, 0] = np.linspace(30, 90, n_steps)  # X
+trajectories[2, :, 1] = np.abs(np.sin(np.linspace(0, 4*np.pi, n_steps)) * 50 + 20  # Y
+
+np.save('data/trajectories.npy', trajectories)

@@ -1,4 +1,6 @@
 import time
+import os
+os.environ["OMP_NUM_THREADS"] = "4"  # Evita sobrecarga do OpenMP
 from tqdm import tqdm
 from core.foam import Foam
 import tracemalloc

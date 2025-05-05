@@ -1,12 +1,13 @@
 import numpy as np
 from typing import Dict, List
+from collections import deque
 
 class Foam:
     def __init__(self, width: int, height: int, n_obstacles: int = 10):
         self.grid = np.zeros((height, width))
         self.obstacles = self._generate_obstacles(n_obstacles, width, height)
         self.robot_pos = (width // 2, height // 2)
-        self.history = []
+        self.history = deque(maxlen=30)  # Armazena apenas os últimos 30 frames
         
     def _generate_obstacles(self, n: int, w: int, h: int) -> List[tuple]:
         return [(np.random.randint(0, w), np.random.randint(0, h)) for _ in range(n)]

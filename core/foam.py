@@ -58,7 +58,7 @@ class Foam:
         """Gera obstáculos aleatórios otimizado"""
         return [
             (np.random.randint(0, width), 
-            np.random.randint(0, height)
+            np.random.randint(0, height))
             for _ in range(n)
         ]
 

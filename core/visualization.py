@@ -1,5 +1,10 @@
 import matplotlib.pyplot as plt
+import pygame
 from matplotlib.animation import FuncAnimation
+
+pygame.init()
+screen = pygame.display.set_mode((width, height))
+surface = pygame.surfarray.make_surface(grid * 255)
 
 def plot_comparison(results: dict):
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
